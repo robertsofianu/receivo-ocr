@@ -2,15 +2,24 @@ FROM golang:1.24.3-alpine AS builder
 
 WORKDIR /app
 
-COPY ../ ../go.mod ../../go.sum ./
+# Copy module files (from repository root -> api_server)
+# Build MUST be run with the repository root as the build context.
+COPY api_server/go.mod api_server/go.sum ./
 RUN go mod download
 
-COPY . .
+# Copy only the OCR service source into the build context
+COPY api_server/services/ocr_service ./
 
-RUN go build -o ocr_service ./services/ocr_service/ocr_service.go
+# Build the binary (output name matches the CMD below)
+RUN go build -o ocr_svc ocr_svc.go
 
-COPY --from=builder /app/ocr_service .
+FROM alpine:3.18
+WORKDIR /app
 
-EXPOSE 8080
+# Copy the built binary from the builder stage
+COPY --from=builder /app/ocr_svc ./ocr_svc
+
+# The Go service listens on port 8081 (see source), so expose that
+EXPOSE 8081
 
 CMD ["./ocr_svc"]
